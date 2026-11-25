@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>RunWay</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link href="styles.css" rel="stylesheet">
+</head>
+<body>
+
+<!-- ============ unauthenticated ============ -->
+<div id="auth">
+  <div class="wrap">
+    <div class="top">
+      <div class="logo" id="authLogo"></div>
+      <button class="gho" id="btnBackendCfg" style="color:var(--on-dark-2)">Connect a backend</button>
+    </div>
+
+    <!-- welcome -->
+    <section class="hero" id="pnl-welcome">
+      <div>
+        <h1>Plan the run you actually want.</h1>
+        <p class="lede">RunWay builds running routes from OpenStreetMap and weights them the way you run &mdash;
+          away from traffic lights, through parks, flat or hilly, lit or not. Describe the run in a sentence
+          and it works out the rest.</p>
+        <div class="row wrap" style="margin-bottom:34px">
+          <button class="pri" id="btnGoSignup" style="padding:13px 24px;font-size:15.5px">Create an account</button>
+          <button id="btnGoLogin" style="padding:13px 24px;font-size:15.5px;background:var(--ink-2);border-color:var(--ink-4);color:var(--on-dark)">Log in</button>
+        </div>
+        <div class="feats" id="featList"></div>
+      </div>
+      <div class="panel">
+        <h2>What makes it different</h2>
+        <p class="sub">Most planners route you like a car with the engine off. RunWay has its own cost
+          function over the raw street graph, so the things runners care about are actual routing inputs.</p>
+        <div id="whyList" class="feats"></div>
+      </div>
+    </section>
+
+    <!-- sign up -->
+    <section class="hero" id="pnl-signup" style="display:none">
+      <div>
+        <h1>Create your account</h1>
+        <p class="lede">Your routes, activities and training plans stay tied to this account.</p>
+        <div class="feats" id="featList2"></div>
+      </div>
+      <div class="panel">
+        <h2>Sign up</h2>
+        <p class="sub" id="signupMode"></p>
+        <div id="signupNote"></div>
+        <form id="formSignup" novalidate>
+          <label class="fld"><span>Name</span><input name="name" autocomplete="name" placeholder="Your name"></label>
+          <label class="fld"><span>Email</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label class="fld"><span>Password</span><input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
+          <label class="fld"><span>Confirm password</span><input name="confirm" type="password" autocomplete="new-password" placeholder="Type it again"></label>
+          <button class="pri big" type="submit">Create account</button>
+        </form>
+        <div class="alt">Already have an account? <button id="btnToLogin">Log in</button></div>
+      </div>
+    </section>
+
+    <!-- log in -->
+    <section class="hero" id="pnl-login" style="display:none">
+      <div>
+        <h1>Welcome back.</h1>
+        <p class="lede">Pick up where you left off.</p>
+        <div class="feats" id="featList3"></div>
+      </div>
+      <div class="panel">
+        <h2>Log in</h2>
+        <p class="sub" id="loginMode"></p>
+        <div id="loginNote"></div>
+        <form id="formLogin" novalidate>
+          <label class="fld"><span>Email</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label class="fld"><span>Password</span><input name="password" type="password" autocomplete="current-password" placeholder="Your password"></label>
+          <button class="pri big" type="submit">Log in</button>
+        </form>
+        <div class="alt"><button id="btnToRecover">Forgotten your password?</button></div>
+        <div class="alt">No account yet? <button id="btnToSignup">Sign up</button></div>
+      </div>
+    </section>
+
+    <!-- recovery -->
+    <section class="hero" id="pnl-recover" style="display:none">
+      <div>
+        <h1>Reset your password</h1>
+        <p class="lede" id="recoverLede"></p>
+      </div>
+      <div class="panel">
+        <h2>Password reset</h2>
+        <p class="sub" id="recoverMode"></p>
+        <div id="recoverNote"></div>
+        <form id="formRecover" novalidate>
+          <label class="fld"><span>Email</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <div id="recoverCodeFields">
+            <label class="fld"><span>Recovery code</span><input name="code" placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX" autocomplete="off"></label>
+            <label class="fld"><span>New password</span><input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
+            <label class="fld"><span>Confirm new password</span><input name="confirm" type="password" autocomplete="new-password"></label>
+          </div>
+          <button class="pri big" type="submit" id="btnRecoverSubmit">Reset password</button>
+        </form>
+        <div class="alt"><button id="btnBackToLogin">Back to log in</button></div>
+      </div>
+    </section>
+
+    <!-- backend config -->
+    <section class="hero" id="pnl-backend" style="display:none">
+      <div>
+        <h1>Connect a backend</h1>
+        <p class="lede">RunWay works fully without one &mdash; accounts, routes and plans all live in this
+          browser. Connecting a Supabase project adds real accounts, sync across your devices, and a
+          community where you can actually see other runners' public routes.</p>
+        <div class="note warn"><b>Not yet verified.</b> The Supabase integration is written against the
+          documented API but has never been run against a live project. Try it on a throwaway project first.</div>
+        <div class="note info"><b>Setup, in order.</b> Create a free project at supabase.com &rarr; open the
+          SQL Editor &rarr; paste and run <code>supabase/schema.sql</code> from this folder &rarr; copy your
+          project URL and anon key from Project Settings &rarr; API &rarr; paste them here.</div>
+      </div>
+      <div class="panel">
+        <h2>Supabase project</h2>
+        <p class="sub">The anon key is a public key and is meant to be visible in the browser. Row-level
+          security in the schema is what protects the data.</p>
+        <div id="backendNote"></div>
+        <form id="formBackend" novalidate>
+          <label class="fld"><span>Project URL</span><input name="url" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off"></label>
+          <label class="fld"><span>Anon (public) key</span><input name="anonKey" placeholder="eyJhbGciOi..." autocomplete="off"></label>
+          <button class="pri big" type="submit">Save and reload</button>
+        </form>
+        <div class="row" style="margin-top:12px">
+          <button id="btnClearBackend" class="gho" style="color:var(--on-dark-2)">Disconnect</button>
+          <button id="btnBackendBack" class="gho" style="color:var(--on-dark-2);margin-left:auto">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- onboarding -->
+    <section id="pnl-onboard" style="display:none;max-width:620px;margin:0 auto;width:100%">
+      <div class="panel">
+        <h2 id="obTitle">A few questions</h2>
+        <p class="sub" id="obSub">These set your defaults. You can change any of them later.</p>
+        <div id="obBody"></div>
+        <div class="row" style="margin-top:20px">
+          <button id="obBack" class="gho" style="color:var(--on-dark-2)">Back</button>
+          <button id="obNext" class="pri" style="margin-left:auto;min-width:130px">Next</button>
+        </div>
+        <div class="xs" id="obStep" style="color:var(--on-dark-3);text-align:center;margin-top:14px"></div>
+      </div>
+    </section>
+
+    <footer>
+      Route data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, under the
+      <a href="https://opendatacommons.org/licenses/odbl/">Open Database License (ODbL)</a>.
+      Elevation from Copernicus DEM GLO-90 via <a href="https://open-meteo.com/">Open-Meteo</a>.
+      Geocoding by <a href="https://nominatim.openstreetmap.org/">Nominatim</a>. Basemap by
+      <a href="https://openfreemap.org/">OpenFreeMap</a>.
+      <br>Routes are generated from crowd-sourced data and are not a safety assessment. Check them before you run.
+    </footer>
+  </div>
+</div>
+
+<!-- ============ authenticated ============ -->
+<div id="app" style="display:none">
+  <nav id="side"></nav>
+  <main id="content">
+
+    <section class="scr" id="scr-home">
+      <div class="hd"><h1 id="homeHi">Home</h1><p id="homeSub"></p></div>
+      <div id="homeBody"></div>
+    </section>
+
+    <section class="scr full" id="scr-create">
+      <div id="plan">
+        <div class="pane">
+          <div class="hd" style="margin-bottom:16px">
+            <h1 style="font-size:20px">Create a route</h1>
+            <p class="sm">Describe the run you want, or set it up by hand below.</p>
+          </div>
+          <label class="fld">
+            <span>What kind of run?</span>
+            <textarea id="reqText" rows="3" placeholder="A flat 8 km loop through parks, avoiding busy roads"></textarea>
+          </label>
+          <div class="row" style="margin-bottom:14px">
+            <button class="pri" id="btnInterpret" style="flex:1">Plan this run</button>
+            <button id="btnMic" title="Dictate your request">Voice</button>
+          </div>
+          <div id="micNote"></div>
+          <div id="askBox"></div>
+          <div id="readBox"></div>
+
+          <details class="adv" id="advBox">
+            <summary>Set it up by hand</summary>
+            <div class="body">
+              <label class="fld" style="margin-top:10px"><span>Route type</span>
+                <div class="seg" id="modeSeg">
+                  <button data-m="loop" class="on">Loop</button>
+                  <button data-m="oab">Out &amp; back</button>
+                  <button data-m="p2p">A to B</button>
+                </div>
+              </label>
+              <label class="fld"><span>Start</span>
+                <div class="row"><input id="startQ" placeholder="Address or place"><button id="btnFindA">Find</button></div>
+              </label>
+              <div id="sugA"></div>
+              <div class="row" style="margin:-4px 0 13px">
+                <button class="tiny" id="btnLocate" style="flex:1">Use my location</button>
+                <button class="tiny" id="btnPickA" style="flex:1">Pick on map</button>
+              </div>
+              <div class="xs mut" id="startTxt" style="margin:-8px 0 13px"></div>
+              <div id="endWrap" style="display:none">
+                <label class="fld"><span>Finish</span>
+                  <div class="row"><input id="endQ" placeholder="Address or place"><button id="btnFindB">Find</button></div>
+                </label>
+                <div id="sugB"></div>
+                <div class="row" style="margin:-4px 0 13px"><button class="tiny" id="btnPickB" style="flex:1">Pick on map</button></div>
+                <div class="xs mut" id="endTxt" style="margin:-8px 0 13px"></div>
+              </div>
+              <label class="fld" id="distWrap"><span>Target distance <i id="distVal" style="font-style:normal;color:var(--fg-3);font-weight:400"></i></span>
+                <div class="row"><input id="distN" type="number" min="1" max="42" step="0.5" value="8" style="width:86px;flex:0 0 86px;text-align:center;font-weight:600">
+                  <input id="distR" type="range" min="1" max="30" step="0.5" value="8" style="flex:1"></div>
+              </label>
+              <div id="sliders"></div>
+              <label class="chk" style="margin-top:12px"><input type="checkbox" id="cbStairs" checked> Avoid stairs</label>
+              <label class="chk" style="margin-top:9px"><input type="checkbox" id="cbAmen" checked> Show water &amp; toilets</label>
+              <button class="pri big" id="btnGenerate" style="margin-top:16px" disabled>Generate routes</button>
+              <div class="xs mut" id="genHint" style="margin-top:8px"></div>
+            </div>
+          </details>
+        </div>
+        <div class="mapwrap">
+          <div id="mapel"></div>
+          <div id="toast"></div>
+          <div id="editbar">
+            <span id="editMsg"></span>
+            <button id="btnUndo">Undo</button>
+            <button id="btnResetEdit">Reset</button>
+            <button id="btnDoneEdit">Done</button>
+          </div>
+          <div id="mapacts">
+            <button id="btnSaveRoute" class="pri">Save route</button>
+            <button id="btnEditRoute">Edit shape</button>
+            <button id="btnGpx">Download GPX</button>
+          </div>
+          <div id="results">
+            <div id="rcards"></div>
+            <div id="profbox">
+              <div class="t"><span>Elevation</span><em id="profMeta"></em></div>
+              <svg id="profSvg" viewBox="0 0 600 70" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scr" id="scr-routes">
+      <div class="hd spread">
+        <div><h1>My routes</h1><p id="routesSub"></p></div>
+        <div class="row"><button id="btnImport">Import a route</button><input type="file" id="fileImport" accept=".json,.runway,application/json" class="hide"></div>
+      </div>
+      <div id="routesBody"></div>
+    </section>
+
+    <section class="scr" id="scr-community">
+      <div class="hd"><h1>Community</h1><p id="commSub"></p></div>
+      <div id="commBody"></div>
+    </section>
+
+    <section class="scr" id="scr-run"><div class="hd"><h1>Start a run</h1></div><div id="runBody"></div></section>
+    <section class="scr" id="scr-plans"><div class="hd"><h1>Training plans</h1></div><div id="plansBody"></div></section>
+    <section class="scr" id="scr-activities"><div class="hd"><h1>My activities</h1></div><div id="actBody"></div></section>
+
+    <section class="scr" id="scr-profile">
+      <div class="hd"><h1>My profile</h1><p>Your details, running defaults and account settings.</p></div>
+      <div id="profBody"></div>
+    </section>
+
+  </main>
+  <div id="tabs"></div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="core.js"></script>
+<script src="nlu.js"></script>
+<script src="store.js"></script>
+<script src="osm.js"></script>
+<script src="app.js"></script>
+<script src="planner.js"></script>
+</body>
+</html>

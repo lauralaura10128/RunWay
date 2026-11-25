@@ -1,0 +1,14 @@
+{
+  "name": "runway",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Running route planner built on OpenStreetMap, with its own routing cost function",
+  "scripts": {
+    "test": "for f in test-core test-overpass test-v2 test-nlu test-store test-app; do node $f.cjs || exit 1; done",
+    "serve": "python3 -m http.server 8000"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.0.0",
+    "linkedom": "^0.18.0"
+  }
+}
