@@ -41,6 +41,10 @@ force(window, 'performance', { now: () => Date.now() });
 window.requestAnimationFrame = f => setTimeout(f, 0);
 window.setTimeout = setTimeout; window.clearTimeout = clearTimeout;
 force(window, 'fetch', () => Promise.reject(new Error('network disabled in test')));
+force(window, 'speechSynthesis', { speak() {}, cancel() {} });
+force(window, 'SpeechSynthesisUtterance', function () { return {}; });
+force(window, 'setInterval', setInterval);
+force(window, 'clearInterval', clearInterval);
 force(window.navigator, 'geolocation', { getCurrentPosition: (_s, e) => e({ message: 'blocked in test' }) });
 window.URL = { createObjectURL: () => 'blob:x', revokeObjectURL() {} };
 window.Blob = function () {};
@@ -56,7 +60,7 @@ document.createElement = function (t) {
   if (t === 'input') e.click = function () { };
   return e;
 };
-force(window, 'location', { protocol: 'http:', hash: '', reload() {} });
+force(window, 'location', { protocol: 'http:', hostname: 'localhost', hash: '', reload() {} });
 
 /* ---- stub MapLibre ---- */
 const mapLayers = new Set(), mapSources = {}, handlers = {};
@@ -90,7 +94,8 @@ window.maplibregl = {
 /* ---- globals the modules expect ---- */
 for (const k of ['document', 'localStorage', 'sessionStorage', 'indexedDB', 'IDBKeyRange', 'crypto',
                  'TextEncoder', 'performance', 'requestAnimationFrame', 'fetch', 'navigator',
-                 'maplibregl', 'prompt', 'confirm', 'alert', 'URL', 'Blob', 'location', 'Event']) {
+                 'maplibregl', 'prompt', 'confirm', 'alert', 'URL', 'Blob', 'location', 'Event',
+                 'speechSynthesis', 'SpeechSynthesisUtterance', 'setInterval', 'clearInterval']) {
   force(globalThis, k, window[k]);
 }
 globalThis.window = window;
@@ -113,7 +118,7 @@ function nav(h) {
 /* ---- load the app ---- */
 const vm = require('vm');
 const ctx = vm.createContext(globalThis);
-for (const f of ['core.js', 'nlu.js', 'store.js', 'osm.js', 'app.js', 'planner.js']) {
+for (const f of ['core.js', 'nlu.js', 'store.js', 'osm.js', 'training.js', 'running.js', 'app.js', 'planner.js', 'screens.js']) {
   vm.runInContext(fs.readFileSync(f, 'utf8'), ctx, { filename: f });
 }
 const S = globalThis.RWStore;
@@ -198,7 +203,7 @@ const $ = id => document.getElementById(id);
   ok($('tabs').querySelectorAll('a').length === 5, 'five mobile tabs');
   ok($('side').textContent.indexOf('Ana Costa') >= 0, 'signed-in name in the sidebar');
   const soon = Array.from($('side').querySelectorAll('a')).filter(a => a.textContent.indexOf('soon') >= 0);
-  ok(soon.length === 3, 'the three unbuilt sections are marked, not hidden', soon.map(a => a.textContent.trim()));
+  ok(soon.length === 0, 'no section is marked unbuilt', soon.map(a => a.textContent.trim()));
 
   console.log('\nHome');
   nav('home'); await settle(30);
@@ -206,15 +211,6 @@ const $ = id => document.getElementById(id);
   ok($('homeBody').textContent.indexOf('Saved routes') >= 0, 'stat tiles rendered');
   ok($('homeBody').textContent.indexOf('4:45/km') >= 0, 'shows the pace from onboarding');
   ok($('homeBody').textContent.indexOf('No routes yet') >= 0, 'empty state shown');
-
-  console.log('\nDeferred screens are honest, not fake');
-  ['run', 'plans', 'activities'].forEach(v => {
-    nav(v);
-    const body = $(v === 'run' ? 'runBody' : v === 'plans' ? 'plansBody' : 'actBody');
-    ok(body.textContent.indexOf('Not built yet') >= 0, v + ' is labelled as not built');
-    ok(body.textContent.length > 120, v + ' explains what it will do', body.textContent.length);
-  });
-  ok($('runBody').textContent.indexOf('localhost') >= 0, 'run screen names its secure-context dependency');
 
   console.log('\nCommunity refuses to fabricate');
   nav('community'); await settle(20);
@@ -328,6 +324,143 @@ const $ = id => document.getElementById(id);
   ok($('profMeta').textContent.indexOf('ascent') >= 0, 'profile caption written', $('profMeta').textContent);
   ok($('results').style.display === 'flex', 'results panel shown');
   ok(RW.st.openedRoute !== null, 'remembers which saved route is open');
+
+  console.log('\nAll eight sections are built');
+  {
+    const soonPills = Array.from($('side').querySelectorAll('a')).filter(a => a.textContent.indexOf('soon') >= 0);
+    ok(soonPills.length === 0, 'nothing is marked as unbuilt any more', soonPills.map(a => a.textContent.trim()));
+    ok(!!globalThis.RunWayScreens, 'the screens module is published');
+  }
+
+  console.log('\nTraining plans');
+  {
+    nav('plans'); await settle(30);
+    const b = $('plansBody');
+    ok(b.textContent.indexOf('Build a plan') >= 0, 'offers the plan builder when there is no plan');
+    ok(b.textContent.indexOf('Run a marathon') >= 0, 'every goal is offered', b.textContent.slice(0, 60));
+    ok(b.textContent.indexOf('This plan would be') >= 0, 'previews the plan before you commit');
+    ok(/\d+ weeks/.test(b.textContent), 'and says how long it would be');
+    ok(/rising to \d+ km/.test(b.textContent), 'and how the volume builds', (b.textContent.match(/rising to \d+ km/) || [])[0]);
+
+    const create = Array.from(b.querySelectorAll('button')).find(x => x.textContent === 'Create this plan');
+    ok(!!create, 'has a create button');
+    create.onclick(); await settle(50);
+    const plans = await S.plans.list();
+    ok(plans.length === 1, 'the plan was saved', plans.length);
+    ok(plans[0].weeks.length >= 4, 'with its weeks', plans[0].weeks.length);
+    ok(plans[0].weeks.every(w => w.workouts.length === 7), 'every week covering seven days');
+
+    nav('plans'); await settle(40);
+    const v = $('plansBody');
+    ok(v.textContent.indexOf('Week 1') >= 0, 'the saved plan renders week by week');
+    ok(v.textContent.indexOf('Next up') >= 0, 'and highlights the next workout');
+    ok(v.textContent.indexOf('0% complete') >= 0, 'with progress at zero');
+    ok(v.querySelectorAll('.wo').length >= 7, 'workout rows rendered', v.querySelectorAll('.wo').length);
+    ok(v.querySelectorAll('.wo input[type=checkbox]').length > 0, 'runnable workouts have a tick box');
+    ok(v.querySelectorAll('.wo.rest').length > 0, 'rest days are shown and styled differently');
+
+    const firstBox = v.querySelector('.wo input[type=checkbox]');
+    firstBox.checked = true;
+    await firstBox.onchange(); await settle(50);
+    const after = await S.plans.list();
+    const doneCount = after[0].weeks.flatMap(w => w.workouts).filter(x => x.done).length;
+    ok(doneCount === 1, 'ticking a workout persists it', doneCount);
+    nav('plans'); await settle(40);
+    ok($('plansBody').textContent.indexOf('0% complete') < 0, 'and progress moves off zero');
+
+    const routeBtn = Array.from($('plansBody').querySelectorAll('button')).find(x => x.textContent === 'Plan a route for this');
+    ok(!!routeBtn, 'offers to generate a route for the next workout');
+    routeBtn.onclick(); await settle(20); RW.route(); await settle(30);
+    ok($('scr-create').classList.contains('on'), 'which jumps to the planner');
+    ok(/\d/.test($('reqText').value) && /km/.test($('reqText').value),
+      'with the workout distance already written in', $('reqText').value);
+  }
+
+  console.log('\nActivities and the performance dashboard');
+  {
+    nav('activities'); await settle(30);
+    ok($('actBody').textContent.indexOf('No runs recorded yet') >= 0, 'honest empty state before any runs');
+
+    const base = Date.parse('2026-11-20T08:00:00Z');
+    for (const [i, d] of [[0, 10200], [1, 5100], [2, 21300]].entries()) {
+      await S.activities.save({
+        name: 'Run ' + i, distanceM: d[1], durationS: Math.round(d[1] / 1000 * 300),
+        avgPaceSecPerKm: 300, ascentM: 40, movingS: 100, pausedS: 0,
+        startedAt: new Date(base - d[0] * 86400000).toISOString(), track: [], isPublic: false
+      });
+    }
+    nav('activities'); await settle(40);
+    const a = $('actBody');
+    ok(a.textContent.indexOf('Total distance') >= 0, 'stat tiles rendered');
+    ok(a.textContent.indexOf('36.6 km') >= 0, 'total distance is correct', (a.textContent.match(/[\d.]+ km/g) || []).slice(0, 4));
+    ok(a.textContent.indexOf('Weekly distance') >= 0, 'weekly chart rendered');
+    ok(a.querySelectorAll('.chart .col').length === 12, 'twelve weekly columns', a.querySelectorAll('.chart .col').length);
+    ok(a.textContent.indexOf('Personal records') >= 0, 'personal records table rendered');
+    ok(a.querySelectorAll('.prs tr').length >= 3, 'with rows for the distances covered', a.querySelectorAll('.prs tr').length);
+    ok(a.textContent.indexOf('21.30 km') >= 0, 'the half-marathon run is listed');
+    ok(a.textContent.indexOf('All runs') >= 0, 'and the full run list');
+  }
+
+  console.log('\nStart a run');
+  {
+    globalThis.location.hostname = 'example.com';
+    nav('run'); await settle(40);
+    ok($('runBody').textContent.indexOf('GPS is blocked') >= 0,
+      'on a non-secure origin it says GPS will not work', $('runBody').textContent.slice(0, 60));
+    ok($('runBody').textContent.indexOf('Simulate') >= 0, 'and points at the simulator instead');
+    globalThis.location.hostname = 'localhost';
+
+    nav('run'); await settle(40);
+    const r = $('runBody');
+    ok(r.textContent.indexOf('GPS is blocked') < 0, 'on localhost there is no warning');
+    ok(r.textContent.indexOf('Follow one of your routes') >= 0, 'offers your saved routes', r.textContent.slice(0, 80));
+    ok(r.textContent.indexOf('Free run') >= 0, 'and a free run with no route');
+    ok(r.querySelectorAll('.ritem').length > 0, 'route cards rendered', r.querySelectorAll('.ritem').length);
+
+    const SC = globalThis.RunWayScreens;
+    const routes = await S.routes.list();
+    SC.startRun(routes[0]);
+    await settle(30);
+    ok($('live').style.display === 'flex', 'the live overlay opens');
+    ok(SC.live.active === true, 'a run is in progress');
+    ok(SC.live.track !== null, 'the route was turned into a followable track');
+    ok($('liveCue').textContent.indexOf(routes[0].name) >= 0, 'and names what you are following', $('liveCue').textContent);
+
+    /* feed positions along the route, as the simulator would */
+    const coords = routes[0].coords;
+    SC.handlePoint(coords[0][1], coords[0][0], 5, Date.now());
+    await settle(10);
+    SC.handlePoint(coords[1][1], coords[1][0], 5, Date.now() + 60000);
+    await settle(10);
+    ok(SC.live.rec.distanceM > 0, 'distance accumulates from the fixes', SC.live.rec.distanceM.toFixed(1));
+    ok($('liveDist').textContent !== '0.00', 'and reaches the display', $('liveDist').textContent);
+    ok(SC.live.nav !== null, 'navigation state computed');
+    ok($('liveFill').style.width !== '0%', 'the progress bar moves', $('liveFill').style.width);
+
+    $('livePause').onclick();
+    ok(SC.live.rec.paused === true, 'pause works');
+    ok($('livePause').textContent === 'Resume', 'and the button flips');
+    $('livePause').onclick();
+    ok(SC.live.rec.paused === false, 'resume works');
+
+    $('liveVoice').onclick();
+    ok(SC.live.voice === false, 'voice can be turned off');
+    ok($('liveVoice').textContent === 'Voice off', 'and says so');
+    $('liveVoice').onclick();
+
+    const before = (await S.activities.list()).length;
+    await SC.finishRun(false); await settle(60);
+    ok(SC.live.active === false, 'finishing ends the run');
+    ok($('live').style.display === 'none', 'and closes the overlay');
+    const acts = await S.activities.list();
+    ok(acts.length === before + 1, 'the run was saved as an activity', acts.length);
+    ok(acts[0].routeId === routes[0].id, 'linked to the route it followed');
+    ok(acts[0].distanceM > 0, 'with a distance', acts[0].distanceM);
+    ok(acts[0].startedAt && acts[0].finishedAt, 'and timestamps');
+
+    nav('activities'); await settle(40);
+    ok($('actBody').textContent.indexOf('Planned') >= 0, 'the saved run is compared against its planned route');
+  }
 
   console.log('\nSecond account sees none of it');
   /* pin the privacy state so the expectation is exact rather than order-dependent */

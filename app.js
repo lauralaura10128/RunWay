@@ -42,7 +42,7 @@
     { id: 'community', label: 'Community' }, { id: 'profile', label: 'My profile' }
   ];
   var TABS = ['home', 'create', 'routes', 'community', 'profile'];
-  var BUILT = { home: 1, create: 1, routes: 1, community: 1, profile: 1 };
+  var BUILT = { home: 1, create: 1, routes: 1, run: 1, plans: 1, activities: 1, community: 1, profile: 1 };
 
   var SLIDERS = [
     { k: 'signals', label: 'Avoid traffic lights', min: 0, max: 1, lo: "don't care", hi: 'avoid hard' },
@@ -141,7 +141,10 @@
       if (v === 'routes' && P) P.renderRoutes();
       if (v === 'community' && P) P.renderCommunity();
       if (v === 'profile') renderProfile();
-      if (v === 'run' || v === 'plans' || v === 'activities') renderDeferred(v);
+      var SC = window.RunWayScreens;
+      if (v === 'run' && SC) SC.renderRun();
+      if (v === 'plans' && SC) SC.renderPlans();
+      if (v === 'activities' && SC) SC.renderActivities();
       var c = $('content');
       if (c) c.scrollTop = 0;
     }
@@ -481,6 +484,25 @@
     });
     body.appendChild(stats);
 
+    try {
+      var plans = await S.plans.list();
+      var active = plans.filter(function (p) { return p.active !== false; })[0];
+      if (active && window.RWTraining) {
+        var nx = window.RWTraining.nextWorkout(active);
+        var pg = window.RWTraining.progress(active);
+        if (nx) {
+          body.appendChild(el('div', { class: 'card', style: 'margin-bottom:16px' }, [
+            el('div', { class: 'pill on', text: active.name }),
+            el('h3', { style: 'margin:10px 0 5px', text: 'Next: ' + nx.workout.title +
+              (nx.workout.distanceM ? ' \u00b7 ' + (nx.workout.distanceM / 1000).toFixed(1) + ' km' : '') }),
+            el('p', { class: 'sm mut', text: 'Week ' + nx.week + ', ' + nx.workout.dayName + ' \u00b7 ' +
+              pg.done + ' of ' + pg.total + ' done' }),
+            el('button', { text: 'Open training plan', onclick: function () { go('plans'); } })
+          ]));
+        }
+      }
+    } catch (e) { /* home still works without a plan */ }
+
     var quick = el('div', { class: 'card', style: 'margin-bottom:16px' }, [
       el('h3', { text: 'Plan a run now' }),
       el('p', { class: 'sm mut', text: 'Describe it in a sentence, or pick one of your usual distances.' })
@@ -509,28 +531,6 @@
         el('button', { class: 'pri', text: 'Create a route', onclick: function () { go('create'); } })
       ]));
     }
-  }
-
-  /* ============ deferred screens ============ */
-  var DEFERRED = {
-    run: { title: 'Live run navigation',
-      body: 'GPS tracking, turn-by-turn guidance, spoken cues, off-route alerts and pause/resume.',
-      needs: 'Not built yet. It also needs the page served over https or http://localhost — browsers refuse geolocation on a file:// page.' },
-    plans: { title: 'Training plans',
-      body: 'Goal-based plans with weekly progression, easy and long runs, intervals and recovery, each workout able to generate a matching route.',
-      needs: 'Not built yet. The data layer and schema already have a place for plans.' },
-    activities: { title: 'Activity tracking',
-      body: 'Completed runs with distance, duration, pace, splits and ascent, compared against the planned route.',
-      needs: 'Not built yet, and it depends on live navigation recording a track first.' }
-  };
-  function renderDeferred(v) {
-    var d = DEFERRED[v], box = clear($(v === 'run' ? 'runBody' : v === 'plans' ? 'plansBody' : 'actBody'));
-    box.appendChild(el('div', { class: 'card' }, [
-      el('div', { class: 'pill warn', text: 'Not built yet' }),
-      el('h3', { text: d.title, style: 'margin:12px 0 7px' }),
-      el('p', { class: 'mut', text: d.body }),
-      el('p', { class: 'sm mut-2', text: d.needs, style: 'margin-bottom:0' })
-    ]));
   }
 
   /* ============ profile ============ */
@@ -630,7 +630,7 @@
   }
 
   window.RunWay = { st: st, go: go, route: route, toast: toast, el: el,
-    sliderLabel: sliderLabel, SLIDERS: SLIDERS, DEFERRED: DEFERRED, NAV: NAV };
+    sliderLabel: sliderLabel, SLIDERS: SLIDERS, NAV: NAV };
 
   /* ============ boot ============ */
   async function boot() {
@@ -648,6 +648,7 @@
       buildShell();
     }
     if (window.RunWayPlanner) window.RunWayPlanner.wire();
+    if (window.RunWayScreens) window.RunWayScreens.wire();
     route();
   }
   /* Deferred either way: planner.js loads after this file, so booting

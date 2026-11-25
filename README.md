@@ -106,16 +106,25 @@ request fails with `42501 permission denied` before any policy is evaluated.
 Until then, the Community page stays empty on purpose. It explains why rather than
 filling itself with invented runners and reviews.
 
-## What is not built yet
+## Training, running and history
 
-Three sections exist in the navigation, marked "soon", and say what they will do
-rather than pretending to work:
+| Area | State |
+|---|---|
+| Training plans | Working. Eight goals from 5K to marathon. Volume rises by a bounded percentage, every fourth week backs off, the long run is capped as a share of the week, quality sessions only appear once there is a base for them, and any plan with a race date tapers into it. Tick workouts off; each one can generate a matching route. |
+| Live run navigation | Working. GPS tracking, progress along the route, distance remaining, off-route detection with hysteresis, turn cues at 300/100/30 m, kilometre splits, spoken guidance, pause and resume. Needs https or localhost. |
+| Simulation mode | Working. Replays a route at 3 m/s so navigation can be exercised with no GPS at all — indoors, on a desktop, or in a test. |
+| Activity tracking | Working. Finishing a run saves distance, duration, moving and paused time, average pace, ascent and the GPS track, linked to the route it followed. |
+| Performance dashboard | Working. Totals, this week and month, longest run, time on feet, a 12-week distance chart, week streak, and personal records at 1 km through marathon. |
 
-- **Start a run** — live GPS navigation, turn-by-turn, spoken cues, off-route alerts
-- **Training plans** — goal-based plans that generate a route per workout
-- **My activities** — completed runs and performance history
+**The plan engine argues with you.** Ask for a marathon in six weeks off 5 km a
+week and it still builds a plan, but it says in plain language that the longest
+run it can safely reach falls short of what the distance needs.
 
-The schema and data layer already have tables and methods for all three.
+**GPS noise is filtered, not trusted.** Fixes are rejected on poor accuracy,
+impossible speed, and movement smaller than the reported uncertainty. Because
+distance is measured from the last *accepted* fix, rejecting one defers distance
+rather than losing it — five minutes of jitter at a cafe table records zero
+metres, while a runner at 3 m/s with a coarse 12 m fix still measures correctly.
 
 ## Security, stated plainly
 
@@ -133,8 +142,11 @@ core.js             routing engine: graph, A*, cost function, scoring, GPX
 nlu.js              the sentence parser
 store.js            data layer: local + Supabase adapters, auth, privacy
 osm.js              Overpass, elevation, area cache
+training.js         plan generation: progression, taper, workout detail
+running.js          route following, GPS filtering, recording, statistics
 app.js              router, auth screens, onboarding, home, profile
 planner.js          map, generation, editing, route and community screens
+screens.js          training plans, live run overlay, activity history
 supabase/schema.sql tables, triggers and row-level security policies
 ```
 
@@ -148,10 +160,12 @@ npm install     # fake-indexeddb and linkedom, for the test harness only
 npm test
 ```
 
-506 assertions across six suites. `test-app.cjs` runs the real application against
-a real DOM with stubbed MapLibre, Supabase and network, and exercises sign-up
-validation, the auth guard, onboarding, screen routing, route CRUD, privacy
-between accounts, export/import and the honest degradation paths.
+Assertions across eight suites. `test-app.cjs` runs the real application against
+a real DOM with stubbed MapLibre, Supabase, speech and network, and exercises
+sign-up validation, the auth guard, onboarding, screen routing, route CRUD,
+privacy between accounts, export/import, building and ticking off a training
+plan, the performance dashboard, and a full simulated run from start to saved
+activity.
 
 Nothing in the app itself needs npm.
 

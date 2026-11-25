@@ -267,9 +267,23 @@
       <div id="commBody"></div>
     </section>
 
-    <section class="scr" id="scr-run"><div class="hd"><h1>Start a run</h1></div><div id="runBody"></div></section>
-    <section class="scr" id="scr-plans"><div class="hd"><h1>Training plans</h1></div><div id="plansBody"></div></section>
-    <section class="scr" id="scr-activities"><div class="hd"><h1>My activities</h1></div><div id="actBody"></div></section>
+    <section class="scr" id="scr-run">
+      <div class="hd"><h1>Start a run</h1><p id="runSub">Pick a route and follow it live, or just record a run.</p></div>
+      <div id="runBody"></div>
+    </section>
+
+    <section class="scr" id="scr-plans">
+      <div class="hd spread">
+        <div><h1>Training plans</h1><p id="plansSub"></p></div>
+        <div id="plansHdActions"></div>
+      </div>
+      <div id="plansBody"></div>
+    </section>
+
+    <section class="scr" id="scr-activities">
+      <div class="hd"><h1>My activities</h1><p id="actSub"></p></div>
+      <div id="actBody"></div>
+    </section>
 
     <section class="scr" id="scr-profile">
       <div class="hd"><h1>My profile</h1><p>Your details, running defaults and account settings.</p></div>
@@ -280,6 +294,31 @@
   <div id="tabs"></div>
 </div>
 
+<!-- full-screen live run -->
+<div id="live" style="display:none">
+  <div id="liveMap"></div>
+  <div id="liveTop">
+    <div class="cue" id="liveCue">Getting a GPS fix…</div>
+    <button id="liveClose" title="Leave the run">Close</button>
+  </div>
+  <div id="liveHud">
+    <div class="bar"><div class="fill" id="liveFill"></div></div>
+    <div class="nums">
+      <div><b id="liveDist">0.00</b><span>km</span></div>
+      <div><b id="liveTime">0:00</b><span>elapsed</span></div>
+      <div><b id="livePace">—</b><span>pace</span></div>
+      <div><b id="liveLeft">—</b><span>to go</span></div>
+    </div>
+    <div class="acts">
+      <button id="livePause" class="pri">Pause</button>
+      <button id="liveFinish">Finish</button>
+      <button id="liveVoice" title="Spoken guidance">Voice on</button>
+      <button id="liveSim" title="Replay the route instead of using GPS">Simulate</button>
+    </div>
+    <div class="xs" id="liveNote"></div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -288,6 +327,9 @@
 <script src="store.js"></script>
 <script src="osm.js"></script>
 <script src="app.js"></script>
+<script src="training.js"></script>
+<script src="running.js"></script>
 <script src="planner.js"></script>
+<script src="screens.js"></script>
 </body>
 </html>
