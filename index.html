@@ -112,20 +112,21 @@
         <p class="lede">RunWay works fully without one &mdash; accounts, routes and plans all live in this
           browser. Connecting a Supabase project adds real accounts, sync across your devices, and a
           community where you can actually see other runners' public routes.</p>
-        <div class="note warn"><b>Not yet verified.</b> The Supabase integration is written against the
-          documented API but has never been run against a live project. Try it on a throwaway project first.</div>
+        <div class="note ok"><b>Schema verified.</b> <code>supabase/schema.sql</code> has been applied to a live
+          Supabase project and produced all 6 tables with row-level security and 23 policies.</div>
         <div class="note info"><b>Setup, in order.</b> Create a free project at supabase.com &rarr; open the
           SQL Editor &rarr; paste and run <code>supabase/schema.sql</code> from this folder &rarr; copy your
-          project URL and anon key from Project Settings &rarr; API &rarr; paste them here.</div>
+          project URL and publishable key from Project Settings &rarr; API Keys &rarr; paste them here.</div>
       </div>
       <div class="panel">
         <h2>Supabase project</h2>
-        <p class="sub">The anon key is a public key and is meant to be visible in the browser. Row-level
-          security in the schema is what protects the data.</p>
+        <p class="sub">The publishable key is meant to be visible in the browser &mdash; row-level security in
+          the schema is what protects the data. Never paste a <code>sb_secret_</code> or
+          <code>service_role</code> key here: those bypass every policy.</p>
         <div id="backendNote"></div>
         <form id="formBackend" novalidate>
           <label class="fld"><span>Project URL</span><input name="url" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off"></label>
-          <label class="fld"><span>Anon (public) key</span><input name="anonKey" placeholder="eyJhbGciOi..." autocomplete="off"></label>
+          <label class="fld"><span>Publishable key</span><input name="anonKey" placeholder="sb_publishable_... (or a legacy anon JWT)" autocomplete="off"></label>
           <button class="pri big" type="submit">Save and reload</button>
         </form>
         <div class="row" style="margin-top:12px">

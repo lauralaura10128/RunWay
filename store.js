@@ -286,10 +286,11 @@
   }
 
   /* ================= supabase adapter =================
-     NOT VERIFIED AGAINST A LIVE PROJECT. Written against supabase-js v2 and the
-     schema in supabase/schema.sql. Row-level security does the authorisation;
-     these calls deliberately do not filter by user_id themselves, so a policy
-     mistake fails closed rather than leaking. */
+     Written against supabase-js v2 and the schema in supabase/schema.sql, whose
+     tables and policies are verified against a live project. Row-level security
+     does the authorisation; these calls deliberately do not filter by user_id
+     themselves, so a policy mistake fails closed rather than leaking.
+     anonKey accepts either a modern sb_publishable_... key or a legacy anon JWT. */
   var remote = {
     name: 'remote', client: null,
     async connect(cfg) {

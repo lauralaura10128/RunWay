@@ -47,13 +47,19 @@ cross-device sync, and other runners' public routes.
 
 1. Create a project at supabase.com
 2. SQL Editor → paste and run `supabase/schema.sql`
-3. Project Settings → API → copy the project URL and the anon key
+3. Project Settings → API Keys → copy the project URL and the **publishable key**
+   (`sb_publishable_...`; older projects show a legacy `anon` JWT instead — either works)
 4. In RunWay: *Connect a backend* → paste both → Save
 
-> **The Supabase integration has never been run against a live project.** It is
-> written against the documented supabase-js v2 API and the schema in this repo,
-> but it is untested. Try it on a throwaway project first. The app falls back to
-> local mode and tells you if it cannot connect, so a bad config will not brick it.
+> **Never paste a `sb_secret_` or `service_role` key.** Those bypass every RLS
+> policy in the schema. The publishable key is designed to sit in browser
+> JavaScript; row-level security is what actually protects the data.
+
+`supabase/schema.sql` is **verified against a live project** — it applies cleanly
+in one run and produces 6 tables with RLS enabled on every one, 23 policies, a
+`touch_updated_at` trigger per table, and `on_auth_user_created` on `auth.users`.
+The app falls back to local mode and says so if it cannot reach the project, so a
+bad config will not brick it.
 
 Until then, the Community page stays empty on purpose. It explains why rather than
 filling itself with invented runners and reviews.

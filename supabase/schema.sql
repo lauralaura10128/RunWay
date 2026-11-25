@@ -1,12 +1,14 @@
 -- RunWay - Supabase schema and row-level security.
 --
 -- HOW TO APPLY: open your Supabase project, go to SQL Editor, paste this whole
--- file, and run it. Then copy your project URL and anon (public) key from
--- Project Settings - API into RunWay's Settings screen.
+-- file, and run it. Then copy your project URL and your publishable key
+-- (Project Settings - API Keys; older projects call this the anon key) into
+-- RunWay's "Connect a backend" screen.
 --
--- NOT YET VERIFIED AGAINST A LIVE PROJECT. This was written against the
--- documented Supabase/PostgREST behaviour but has not been executed. Run it on a
--- throwaway project first and report any error back.
+-- VERIFIED against a live Supabase project on 2026-11-25: applied cleanly in one
+-- run, producing 6 tables with row-level security enabled on every one, 23
+-- policies (routes/activities/plans/feedback/safety 4 each, profiles 3), a
+-- touch_updated_at trigger per table, and on_auth_user_created on auth.users.
 --
 -- The authorisation story: every table has RLS enabled and NO permissive default.
 -- The client never filters by user_id itself, so if a policy below is wrong the
