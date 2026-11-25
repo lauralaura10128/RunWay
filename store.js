@@ -427,6 +427,64 @@
       'expires_at', 'created_at', 'updated_at']
   };
 
+  /* The schema's own CHECK constraints, enforced here so a value the database
+     would refuse never leaves the browser. Postgres would otherwise answer with
+     a raw constraint-violation message and the save would look like a dead
+     button. Numbers are clamped, text is truncated, and a bad enum throws,
+     since there is nothing sensible to coerce it to.
+     Kept in step with supabase/schema.sql by test-store.cjs. */
+  var CONSTRAINTS = {
+    profiles: {
+      pace_sec_per_km: { min: 120, max: 1200 },
+      weekly_km: { min: 0, max: 400 },
+      experience: { oneOf: ['new', 'returning', 'some', 'regular', 'competitive'] },
+      home_lat: { min: -90, max: 90 },
+      home_lon: { min: -180, max: 180 },
+      units: { oneOf: ['metric', 'imperial'] },
+      activity_privacy: { oneOf: ['private', 'public'] },
+      route_privacy_default: { oneOf: ['private', 'public'] }
+    },
+    routes: {
+      name: { maxLen: 160 },
+      description: { maxLen: 4000 },
+      mode: { oneOf: ['loop', 'oab', 'p2p'] }
+    },
+    activities: {
+      distance_m: { min: 0 }, duration_s: { min: 0 },
+      moving_s: { min: 0 }, paused_s: { min: 0 }
+    },
+    plans: { days_per_week: { min: 1, max: 7 } },
+    feedback: {
+      rating: { min: 1, max: 5 }, safety: { min: 1, max: 5 }, scenery: { min: 1, max: 5 },
+      surface: { min: 1, max: 5 }, traffic: { min: 1, max: 5 }, accuracy: { min: 1, max: 5 },
+      comment: { maxLen: 2000 }
+    },
+    safety_reports: {
+      lat: { min: -90, max: 90 }, lon: { min: -180, max: 180 },
+      kind: { oneOf: ['unlit', 'crossing', 'surface', 'traffic', 'construction',
+        'harassment', 'dog', 'flooding', 'other'] },
+      note: { maxLen: 1000 }
+    }
+  };
+
+  function fit(table, col, v) {
+    var c = CONSTRAINTS[table] && CONSTRAINTS[table][col];
+    if (!c || v === null || v === undefined) return v;
+    if (c.oneOf) {
+      if (c.oneOf.indexOf(v) < 0) {
+        throw new Error('Cannot save: ' + col + ' must be one of ' + c.oneOf.join(', ') +
+          ', not "' + String(v).slice(0, 40) + '".');
+      }
+      return v;
+    }
+    if (c.maxLen !== undefined) return String(v).slice(0, c.maxLen);
+    var n = typeof v === 'number' ? v : parseFloat(v);
+    if (!isFinite(n)) return v;
+    if (c.min !== undefined && n < c.min) n = c.min;
+    if (c.max !== undefined && n > c.max) n = c.max;
+    return n;
+  }
+
   /* Pass `table` to drop keys that table has no column for. Without it every
      key is sent, which is only safe when the destination is IndexedDB. */
   function toRow(o, table) {
@@ -436,7 +494,7 @@
       if (o[k] === undefined) return;
       var col = k === 'userId' ? 'user_id' : snake(k);
       if (allowed && allowed.indexOf(col) < 0) { dropped.push(col); return; }
-      out[col] = o[k];
+      out[col] = table ? fit(table, col, o[k]) : o[k];
     });
     if (dropped.length && root.console && root.console.debug) {
       root.console.debug('[store] ' + table + ': not a column, not sent - ' + dropped.join(', '));
@@ -633,6 +691,7 @@
     _adapters: { local: local, remote: remote },
     _toRow: toRow,
     _COLUMNS: COLUMNS,
+    _CONSTRAINTS: CONSTRAINTS,
     _setAdapter: function (name) { A = name === 'remote' ? remote : local; },
     _setUser: function (u) { user = u; emit(); },
     _reset: function () { dbp = null; user = null; A = local; listeners = []; }

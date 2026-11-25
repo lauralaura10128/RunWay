@@ -331,6 +331,74 @@ async function throws(fn, m, match) {
     ok(!('home_lon' in n), 'undefined is omitted', Object.keys(n));
   }
 
+  console.log('\nValues the database would refuse never leave the browser');
+  {
+    ok(S._toRow({ weeklyKm: 500 }, 'profiles').weekly_km === 400, 'weeklyKm clamped to the 400 km check');
+    ok(S._toRow({ weeklyKm: -5 }, 'profiles').weekly_km === 0, 'and to 0 at the bottom');
+    ok(S._toRow({ paceSecPerKm: 60 }, 'profiles').pace_sec_per_km === 120, 'pace clamped up to 120 s/km');
+    ok(S._toRow({ paceSecPerKm: 9999 }, 'profiles').pace_sec_per_km === 1200, 'and down to 1200');
+    ok(S._toRow({ name: 'x'.repeat(200) }, 'routes').name.length === 160, 'route name truncated to 160');
+    ok(S._toRow({ comment: 'c'.repeat(3000) }, 'feedback').comment.length === 2000, 'comment truncated to 2000');
+    ok(S._toRow({ daysPerWeek: 9 }, 'plans').days_per_week === 7, 'daysPerWeek clamped to 7');
+    ok(S._toRow({ rating: 11 }, 'feedback').rating === 5, 'rating clamped to 5');
+    ok(S._toRow({ distanceM: -3 }, 'activities').distance_m === 0, 'distance cannot go negative');
+    ok(S._toRow({ lat: 200, lon: -400 }, 'safety_reports').lat === 90, 'lat clamped to 90');
+
+    // Nullable columns must stay null, not be clamped to a bound.
+    const n = S._toRow({ homeLat: null, homeLon: null }, 'profiles');
+    ok(n.home_lat === null && n.home_lon === null, 'a nullable coordinate stays null', n);
+    ok(S._toRow({ daysPerWeek: null }, 'plans').days_per_week === null, 'daysPerWeek stays null');
+
+    // A value inside the range is untouched.
+    ok(S._toRow({ weeklyKm: 45 }, 'profiles').weekly_km === 45, 'a legal value is passed through');
+    ok(S._toRow({ experience: 'regular' }, 'profiles').experience === 'regular', 'a legal enum passes');
+
+    // An enum has nothing sensible to coerce to, so it must be loud.
+    let threw = '';
+    try { S._toRow({ mode: 'zigzag' }, 'routes'); } catch (e) { threw = e.message; }
+    ok(/must be one of/.test(threw) && /zigzag/.test(threw), 'a bad enum throws a readable error', threw);
+    ok(!/[Pp]ostgres|PGRST|violates/.test(threw), 'and not a raw database error', threw);
+
+    // No filtering or fitting without a table (the IndexedDB path).
+    ok(S._toRow({ weeklyKm: 500 }).weekly_km === 500, 'untouched when no table is given');
+  }
+
+  console.log('\nCONSTRAINTS matches the CHECKs in supabase/schema.sql');
+  {
+    const fs = require('fs'), path = require('path');
+    const sql = fs.readFileSync(path.join(__dirname, 'supabase', 'schema.sql'), 'utf8');
+    const re = /create table if not exists public\.(\w+)\s*\(([\s\S]*?)\n\);/g;
+    let m, checked = 0;
+    while ((m = re.exec(sql))) {
+      const table = m[1];
+      const body = m[2].replace(/\s+/g, ' ');
+      const mine = S._CONSTRAINTS[table] || {};
+      const found = {};
+      let c;
+      const between = /check \((\w+) between (-?[\d.]+) and (-?[\d.]+)\)/g;
+      while ((c = between.exec(body))) found[c[1]] = { min: +c[2], max: +c[3] };
+      const ge = /check \((\w+) >= (-?[\d.]+) and \1 <= (-?[\d.]+)\)/g;
+      while ((c = ge.exec(body))) found[c[1]] = { min: +c[2], max: +c[3] };
+      const bare = /check \((\w+) >= (-?[\d.]+)\)/g;
+      while ((c = bare.exec(body))) if (!found[c[1]]) found[c[1]] = { min: +c[2] };
+      const len = /check \(char_length\((\w+)\) <= (\d+)\)/g;
+      while ((c = len.exec(body))) found[c[1]] = { maxLen: +c[2] };
+      const inSet = /check \((\w+) in \(([^)]*)\)\)/g;
+      while ((c = inSet.exec(body))) {
+        found[c[1]] = { oneOf: c[2].split(',').map(x => x.trim().replace(/^'|'$/g, '')) };
+      }
+      const norm = o => JSON.stringify(Object.keys(o).sort().reduce((a, k) => {
+        const v = o[k];
+        a[k] = v.oneOf ? { oneOf: v.oneOf.slice().sort() } : v;
+        return a;
+      }, {}));
+      ok(norm(found) === norm(mine), table + ': CONSTRAINTS is in step with the CHECKs',
+         norm(found) === norm(mine) ? undefined : { inSchemaSql: found, inStoreJs: mine });
+      checked++;
+    }
+    ok(checked === 6, 'checked all 6 tables', checked);
+  }
+
   console.log('\nCOLUMNS matches supabase/schema.sql');
   {
     const fs = require('fs'), path = require('path');
