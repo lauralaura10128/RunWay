@@ -178,6 +178,22 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users for each row execute function public.handle_new_user();
 
+-- ============ privileges ============
+-- Row-level security decides WHICH ROWS a role may touch. It does not grant
+-- access to the table in the first place. Without the grants below every request
+-- fails with 42501 "permission denied" before a single policy is evaluated,
+-- because tables created through the SQL editor do not inherit Supabase's
+-- default privileges.
+--
+-- Only `authenticated` is granted anything. RunWay requires a session for every
+-- read, so the anonymous role is deliberately left with nothing: an unauthenticated
+-- request is refused at the table level, before RLS is even consulted. That is one
+-- layer earlier than a policy check, and it fails closed.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+
+revoke all on all tables in schema public from anon;
+
 -- ============ row-level security ============
 alter table public.profiles       enable row level security;
 alter table public.routes         enable row level security;

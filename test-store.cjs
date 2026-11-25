@@ -251,6 +251,40 @@ async function throws(fn, m, match) {
     ok(c.anonKey === 'key123', 'key trimmed');
     S.config.clear();
     ok(S.config.get() === null, 'config can be cleared');
+    S.config.reset();
+  }
+
+  console.log('\nconfig.js fallback and precedence');
+  {
+    S.config.reset();
+    ok(S.config.get() === null, 'no config at all when neither source is present');
+    globalThis.RUNWAY_CONFIG = { supabase: {
+      url: 'https://bakedproj.supabase.co/', publishableKey: ' sb_publishable_abc123 ' } };
+    const baked = S.config.get();
+    ok(!!baked, 'picks up config.js when the browser has nothing saved');
+    ok(baked.url === 'https://bakedproj.supabase.co', 'trailing slash stripped from the baked url', baked.url);
+    ok(baked.anonKey === 'sb_publishable_abc123', 'publishable key trimmed and mapped to anonKey', baked.anonKey);
+    ok(baked.source === 'file', 'reports where the config came from');
+
+    S.config.set({ url: 'https://savedproj.supabase.co', anonKey: 'saved-key' });
+    const saved = S.config.get();
+    ok(saved.url === 'https://savedproj.supabase.co', 'a saved config overrides config.js', saved.url);
+    ok(saved.source === undefined, 'and is not marked as coming from the file');
+
+    S.config.clear();
+    ok(S.config.get() === null, 'Disconnect beats a baked-in config.js');
+    S.config.reset();
+    ok(S.config.get() !== null, 'reset restores the baked-in config');
+
+    globalThis.RUNWAY_CONFIG = { supabase: { url: 'https://x.supabase.co' } };
+    ok(S.config.get() === null, 'a config.js missing its key is ignored');
+    globalThis.RUNWAY_CONFIG = { supabase: { publishableKey: 'k' } };
+    ok(S.config.get() === null, 'a config.js missing its url is ignored');
+    globalThis.RUNWAY_CONFIG = { supabase: {
+      url: 'https://legacyproj.supabase.co', anonKey: 'eyJlegacy' } };
+    ok(S.config.get().anonKey === 'eyJlegacy', 'a legacy anon JWT in config.js still works');
+    delete globalThis.RUNWAY_CONFIG;
+    ok(S.config.get() === null, 'removing config.js returns to local mode');
   }
 
   console.log('\nFalls back rather than dying when Supabase is configured but absent');

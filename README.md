@@ -20,6 +20,13 @@ Then open <http://localhost:8000>. Opening `index.html` by double-click mostly
 works, but the microphone and geolocation will refuse, and the app says so where
 that matters.
 
+## Connected backend
+
+`config.js` ships the project URL and publishable key, so the app is connected on
+first open. Delete that file to go back to local mode, or use *Connect a backend*
+in the app to point it somewhere else. Only publishable keys belong in that file —
+never an `sb_secret_` or `service_role` key.
+
 ## What is fully working
 
 | Area | State |
@@ -55,11 +62,46 @@ cross-device sync, and other runners' public routes.
 > policy in the schema. The publishable key is designed to sit in browser
 > JavaScript; row-level security is what actually protects the data.
 
-`supabase/schema.sql` is **verified against a live project** — it applies cleanly
-in one run and produces 6 tables with RLS enabled on every one, 23 policies, a
-`touch_updated_at` trigger per table, and `on_auth_user_created` on `auth.users`.
-The app falls back to local mode and says so if it cannot reach the project, so a
-bad config will not brick it.
+`supabase/schema.sql` is **verified against a live project**. It applies cleanly in
+one run and produces 6 tables with RLS enabled on every one, 23 policies, table
+grants for `authenticated` only, a `touch_updated_at` trigger per table, and
+`on_auth_user_created` on `auth.users`. The app falls back to local mode and says
+so if it cannot reach the project, so a bad config will not brick it.
+
+### The policies are tested, not assumed
+
+Run against the live database by impersonating two users through the JWT claims
+the policies actually read. All 13 checks pass, and the script removes its own
+test users before reporting:
+
+| check | result |
+|---|---|
+| signup trigger auto-creates both profiles | PASS |
+| A sees both of their own routes | PASS |
+| A cannot create a route owned by B | PASS |
+| B cannot read A's private route | PASS |
+| B can read A's published route | PASS |
+| B cannot edit A's published route | PASS |
+| B cannot publish A's private route | PASS |
+| B cannot delete A's published route | PASS |
+| B sees only their own profile | PASS |
+| B cannot review a route they cannot see | PASS |
+| A cannot see B's private review of A's route | PASS |
+| signed-out cannot read routes at all | PASS |
+| test data fully removed (cascade) | PASS |
+
+### Two things to know about Supabase Auth
+
+**Email confirmation is on by default**, and the built-in free SMTP is rate
+limited to a couple of sends per hour — enough to lock you out of your own
+testing. For solo use, turn it off under *Authentication → Sign In / Providers →
+Email → Confirm email*. For anything real, configure your own SMTP instead. The
+app handles both: if sign-up returns no session it tells you to check your inbox.
+
+**Grants are not optional.** RLS decides which rows a role may touch; it does not
+grant access to the table. Tables created through the SQL editor do not inherit
+Supabase's default privileges, so without the `grant` block in the schema every
+request fails with `42501 permission denied` before any policy is evaluated.
 
 Until then, the Community page stays empty on purpose. It explains why rather than
 filling itself with invented runners and reviews.

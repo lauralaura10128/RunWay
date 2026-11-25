@@ -440,7 +440,20 @@
     onChange: function (fn) { listeners.push(fn); return function () { listeners = listeners.filter(function (f) { return f !== fn; }); }; },
 
     config: {
-      get: function () { return lsGet(LS_CONFIG); },
+      /* Precedence: an explicit Disconnect wins, then anything saved in this
+         browser, then whatever config.js ships with the project. */
+      get: function () {
+        var ls = lsGet(LS_CONFIG);
+        if (ls && ls.disabled) return null;
+        if (ls && ls.url && ls.anonKey) return ls;
+        var baked = root.RUNWAY_CONFIG && root.RUNWAY_CONFIG.supabase;
+        if (baked && baked.url && (baked.publishableKey || baked.anonKey)) {
+          return { url: String(baked.url).trim().replace(/\/$/, ''),
+                   anonKey: String(baked.publishableKey || baked.anonKey).trim(),
+                   source: 'file' };
+        }
+        return null;
+      },
       set: function (cfg) {
         if (!cfg || !cfg.url || !cfg.anonKey) throw new Error('Both the project URL and the anon key are required.');
         if (!/^https:\/\/[\w-]+\.supabase\.(co|in)\/?$/.test(String(cfg.url).trim())) {
@@ -448,7 +461,10 @@
         }
         return lsSet(LS_CONFIG, { url: String(cfg.url).trim().replace(/\/$/, ''), anonKey: String(cfg.anonKey).trim() });
       },
-      clear: function () { lsDel(LS_CONFIG); }
+      /* Records the choice rather than just forgetting it, so a baked-in
+         config.js does not silently reconnect on the next load. */
+      clear: function () { lsSet(LS_CONFIG, { disabled: true }); },
+      reset: function () { lsDel(LS_CONFIG); }
     },
 
     /* Picks the adapter, restores any session, and never leaves the app dead:
