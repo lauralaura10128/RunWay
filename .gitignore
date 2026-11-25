@@ -1,3 +1,9 @@
 node_modules/
 .DS_Store
 *.log
+
+# Created by run-on-phone.sh; none of it belongs in the repo.
+cloudflared
+cf.tgz
+tunnel.log
+phone-url.txt
