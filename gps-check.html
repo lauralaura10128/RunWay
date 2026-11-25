@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RunWay · GPS check</title>
+<style>
+  :root{--ink:#17201c;--mut:#5d6b63;--line:#dfe5e1;--paper:#f7f9f8;--ok:#1d7a4c;--bad:#b3261e;--warn:#8a5a00}
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+       color:var(--ink);background:var(--paper);padding:28px 20px 60px}
+  main{max-width:660px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--mut);margin:0 0 24px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:0 0 14px}
+  .row{display:flex;gap:12px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .k{flex:0 0 190px;color:var(--mut);font-size:13px}
+  .v{flex:1 1 auto;font-variant-numeric:tabular-nums;word-break:break-word}
+  .ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}.warn{color:var(--warn);font-weight:600}
+  button{font:inherit;font-weight:600;padding:10px 16px;border-radius:9px;border:1px solid var(--ink);
+         background:var(--ink);color:#fff;cursor:pointer}
+  button.sec{background:#fff;color:var(--ink)}
+  button:disabled{opacity:.45;cursor:default}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:22px 0 10px}
+  #verdict{padding:14px 16px;border-radius:10px;border:1px solid var(--line);background:#fff;margin:0 0 18px;display:none}
+  #verdict b{display:block;margin-bottom:6px}
+  ol{margin:8px 0 0;padding-left:22px}li{margin:4px 0}
+  code{background:#eef2f0;padding:1px 5px;border-radius:4px;font-size:13px}
+  .log{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--mut);
+       max-height:190px;overflow:auto;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<main>
+  <h1>GPS check</h1>
+  <p class="sub">Finds out why location isn't working, and whether this machine can do it at all.</p>
+
+  <h2>Environment</h2>
+  <div class="card" id="env"></div>
+
+  <div class="btns">
+    <button id="once">Ask for my location</button>
+    <button id="watch" class="sec">Watch for 20 seconds</button>
+  </div>
+
+  <div id="verdict"></div>
+
+  <h2>Result</h2>
+  <div class="card" id="res"><div class="row"><div class="k">Status</div><div class="v">Not asked yet.</div></div></div>
+
+  <h2>Log</h2>
+  <div class="card log" id="log">waiting…</div>
+</main>
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var lines=[];
+  function log(s){lines.push(new Date().toLocaleTimeString()+'  '+s);$('log').textContent=lines.join('\n');$('log').scrollTop=9e9}
+  function rows(el,pairs){
+    el.innerHTML='';
+    pairs.forEach(function(p){
+      var d=document.createElement('div');d.className='row';
+      var k=document.createElement('div');k.className='k';k.textContent=p[0];
+      var v=document.createElement('div');v.className='v'+(p[2]?' '+p[2]:'');v.textContent=p[1];
+      d.appendChild(k);d.appendChild(v);el.appendChild(d);
+    });
+  }
+  function verdict(title,steps,cls){
+    var v=$('verdict');v.style.display='block';
+    v.innerHTML='';
+    var b=document.createElement('b');b.className=cls||'';b.textContent=title;v.appendChild(b);
+    if(steps&&steps.length){
+      var ol=document.createElement('ol');
+      steps.forEach(function(s){var li=document.createElement('li');li.innerHTML=s;ol.appendChild(li)});
+      v.appendChild(ol);
+    }
+  }
+
+  // ---- environment ----
+  var hasGeo='geolocation' in navigator;
+  var secure=window.isSecureContext;
+  var ua=navigator.userAgent;
+  var isMac=/Macintosh|Mac OS X/.test(ua)&&!/iPhone|iPad/.test(ua);
+  var isPhone=/iPhone|iPad|Android/.test(ua);
+  var browser=/Edg\//.test(ua)?'Edge':/Chrome\//.test(ua)?'Chrome':/Safari\//.test(ua)?'Safari':/Firefox\//.test(ua)?'Firefox':'unknown';
+
+  var envRows=[
+    ['Page address',location.origin+location.pathname],
+    ['Secure context',secure?'yes':'NO - geolocation is blocked',secure?'ok':'bad'],
+    ['navigator.geolocation',hasGeo?'present':'MISSING',hasGeo?'ok':'bad'],
+    ['Browser',browser],
+    ['Device',isPhone?'phone or tablet (has a real GPS chip)':isMac?'Mac (no GPS chip - uses Wi-Fi positioning)':'desktop',isPhone?'ok':'warn']
+  ];
+  rows($('env'),envRows);
+  log('secure='+secure+' geo='+hasGeo+' browser='+browser+' mac='+isMac+' phone='+isPhone);
+
+  if(navigator.permissions&&navigator.permissions.query){
+    navigator.permissions.query({name:'geolocation'}).then(function(st){
+      envRows.push(['Site permission',st.state,st.state==='granted'?'ok':st.state==='denied'?'bad':'warn']);
+      rows($('env'),envRows);
+      log('permission state = '+st.state);
+      if(st.state==='denied'){
+        verdict('This page is blocked from using your location.',
+          [browser==='Safari'
+            ? 'Safari → Settings for <code>localhost</code> → set Location to <b>Allow</b>, then reload.'
+            : 'Click the icon at the left of the address bar → Location → <b>Allow</b>, then reload this page.'],'bad');
+      }
+    }).catch(function(){});
+  }
+
+  if(!secure){
+    verdict('Geolocation cannot run on this address.',
+      ['Serve the folder and open it as <code>http://localhost:8000</code> — not as a <code>file://</code> path and not by IP.'],'bad');
+  }
+
+  // ---- interpretation of a fix ----
+  function judge(acc){
+    // RunWay's jitter gate ignores movement below accuracy x 0.75, so a coarse
+    // fix cannot register a runner's pace at all.
+    var gate=Math.max(8,acc*0.75);
+    if(acc<=20) return ['Good enough to track a run.',  'ok',  gate];
+    if(acc<=75) return ['Usable, but pace will be noisy.','warn',gate];
+    return ['Too coarse to track a run.','bad',gate];
+  }
+
+  function show(pos,label){
+    var c=pos.coords, j=judge(c.accuracy);
+    rows($('res'),[
+      ['Status',(label||'Got a fix'),'ok'],
+      ['Latitude',c.latitude.toFixed(6)],
+      ['Longitude',c.longitude.toFixed(6)],
+      ['Accuracy','± '+Math.round(c.accuracy)+' m',j[1]],
+      ['Altitude',c.altitude===null?'not provided':Math.round(c.altitude)+' m'],
+      ['Speed',c.speed===null||c.speed===undefined?'not provided':c.speed.toFixed(1)+' m/s'],
+      ['Movement gate','ignores steps under '+Math.round(j[2])+' m'],
+      ['For run tracking',j[0],j[1]]
+    ]);
+    log('fix lat='+c.latitude.toFixed(5)+' lon='+c.longitude.toFixed(5)+' acc='+Math.round(c.accuracy)+'m');
+    if(j[1]==='bad'){
+      verdict('Location works, but it is far too coarse to track a run.',
+        ['An accuracy of ± '+Math.round(c.accuracy)+' m means RunWay ignores any movement under '+Math.round(j[2])+' m, so a run registers as standing still.',
+         isMac?'This is normal on a Mac — there is no GPS chip, so position comes from nearby Wi-Fi networks.':'',
+         'To actually track runs you need this on a phone, which needs the app served over HTTPS.'].filter(Boolean),'warn');
+    } else if(j[1]==='ok'){
+      verdict('Location is working and accurate enough to track a run.',null,'ok');
+    } else {
+      verdict('Location is working, but accuracy is marginal.',
+        ['Pace and distance will be noisy. Fine for trying the UI; a phone will do much better.'],'warn');
+    }
+  }
+
+  function fail(e,label){
+    var names={1:'PERMISSION_DENIED',2:'POSITION_UNAVAILABLE',3:'TIMEOUT'};
+    rows($('res'),[
+      ['Status',(label||'Failed'),'bad'],
+      ['Error code',e.code+' ('+(names[e.code]||'?')+')','bad'],
+      ['Message',e.message||'(none)']
+    ]);
+    log('ERROR code='+e.code+' ('+(names[e.code]||'?')+') msg='+(e.message||''));
+
+    if(e.code===1){
+      verdict('Permission was refused — by the browser, or by macOS.',[
+        browser==='Safari'
+          ? 'Safari → Settings → Websites → Location → set <code>localhost</code> to <b>Allow</b>.'
+          : 'Click the icon at the left of the address bar → Location → <b>Allow</b>, then reload.',
+        isMac?'Then: <b>System Settings → Privacy &amp; Security → Location Services</b> — make sure it is on, <i>and</i> that '+browser+' is ticked in the list below it.':''
+      ].filter(Boolean),'bad');
+    } else if(e.code===2){
+      verdict('Your machine could not work out where it is.',[
+        isMac?'<b>System Settings → Privacy &amp; Security → Location Services</b> → turn it on, and tick '+browser+' in the list.':'Check that location services are enabled for this computer.',
+        isMac?'Make sure <b>Wi-Fi is on</b>. A Mac locates itself by scanning nearby Wi-Fi networks — with Wi-Fi off it has nothing to go on, even on ethernet.':'',
+        'Then press the button again.'
+      ].filter(Boolean),'bad');
+    } else if(e.code===3){
+      verdict('The request timed out.',[
+        'This usually means location services are on but could not get a reading in time.',
+        isMac?'Check Wi-Fi is on, then try again — the first reading after a cold start can be slow.':'Try again, preferably near a window.'
+      ],'warn');
+    }
+  }
+
+  $('once').onclick=function(){
+    if(!hasGeo||!secure){log('refusing to ask: no geolocation or insecure context');return}
+    rows($('res'),[['Status','Asking… (allow the prompt if one appears)','warn']]);
+    log('getCurrentPosition(enableHighAccuracy:true, timeout:15000)');
+    var t=Date.now();
+    navigator.geolocation.getCurrentPosition(
+      function(p){log('replied in '+(Date.now()-t)+'ms');show(p,'Got a fix')},
+      function(e){log('failed after '+(Date.now()-t)+'ms');fail(e,'Failed')},
+      {enableHighAccuracy:true,timeout:15000,maximumAge:0});
+  };
+
+  $('watch').onclick=function(){
+    if(!hasGeo||!secure){return}
+    var b=$('watch');b.disabled=true;b.textContent='Watching…';
+    var n=0,best=Infinity,moved=0,prev=null;
+    log('watchPosition for 20s — walk a few metres if you can');
+    var id=navigator.geolocation.watchPosition(function(p){
+      n++;var c=p.coords;
+      if(c.accuracy<best)best=c.accuracy;
+      if(prev){
+        var R=6371000,dLat=(c.latitude-prev[0])*Math.PI/180,dLon=(c.longitude-prev[1])*Math.PI/180;
+        var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(prev[0]*Math.PI/180)*Math.cos(c.latitude*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+        moved+=2*R*Math.asin(Math.sqrt(a));
+      }
+      prev=[c.latitude,c.longitude];
+      show(p,'Fix '+n+' of a 20s watch');
+      log('  fix '+n+' acc='+Math.round(c.accuracy)+'m cumulative drift='+Math.round(moved)+'m');
+    },function(e){fail(e,'Watch failed')},{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
+    setTimeout(function(){
+      navigator.geolocation.clearWatch(id);
+      b.disabled=false;b.textContent='Watch for 20 seconds';
+      log('watch stopped: '+n+' fixes, best accuracy '+(isFinite(best)?Math.round(best)+'m':'n/a')+', total apparent movement '+Math.round(moved)+'m');
+      if(n===0){log('no fixes at all in 20s');}
+      else if(moved>40){log('NOTE: '+Math.round(moved)+'m of apparent movement while sitting still is GPS drift, not distance.');}
+    },20000);
+  };
+})();
+</script>
+</body>
+</html>
