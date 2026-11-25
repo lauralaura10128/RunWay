@@ -299,7 +299,7 @@
   }
 
   /* ============ onboarding ============ */
-  var ob = { step: 0, data: {} };
+  var ob = { step: 0, data: {}, presetName: '' };
   var OB_STEPS = [
     { title: 'How much are you running?', sub: 'This sets sensible defaults for distance and training.',
       render: function (b, d) {
@@ -356,10 +356,10 @@
         ];
         var box = el('div', { class: 'grid' });
         presets.forEach(function (p) {
-          var on = d.presetName === p[0];
+          var on = ob.presetName === p[0];
           var btn = el('button', { type: 'button', class: on ? 'pri big' : 'big', text: p[0] });
           btn.onclick = function () {
-            d.presetName = p[0];
+            ob.presetName = p[0];
             d.prefs = Object.assign({}, S.DEFAULT_PROFILE.prefs, p[1]);
             box.querySelectorAll('button').forEach(function (x) { x.className = 'big'; });
             btn.className = 'pri big';
@@ -367,7 +367,7 @@
           box.appendChild(btn);
         });
         b.appendChild(field('Pick the closest', box));
-        if (!d.presetName) { d.presetName = presets[1][0]; d.prefs = Object.assign({}, S.DEFAULT_PROFILE.prefs, presets[1][1]); }
+        if (!ob.presetName) { ob.presetName = presets[1][0]; d.prefs = Object.assign({}, S.DEFAULT_PROFILE.prefs, presets[1][1]); }
       },
       read: function () { } }
   ];

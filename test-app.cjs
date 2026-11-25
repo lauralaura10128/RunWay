@@ -195,6 +195,19 @@ const $ = id => document.getElementById(id);
   ok(RW.st.profile.paceSecPerKm === 285, 'pace saved as 4:45 = 285s', RW.st.profile.paceSecPerKm);
   ok(RW.st.profile.weeklyKm === 45, 'weekly distance saved');
   ok(RW.st.profile.experience === 'regular', 'experience saved');
+
+  // The local adapter is IndexedDB, which accepts any key, so walking onboarding
+  // here cannot by itself prove the same payload is legal against Postgres.
+  // Check every saved key against the real profiles columns: `presetName` used
+  // to ride along here, and PostgREST rejected the whole upsert because of it.
+  {
+    const cols = S._COLUMNS.profiles;
+    const snake = k => k.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+    const strays = Object.keys(RW.st.profile)
+      .map(k => (k === 'userId' ? 'id' : snake(k)))
+      .filter(c => cols.indexOf(c) < 0);
+    ok(strays.length === 0, 'every key onboarding saves is a real profiles column', strays);
+  }
   ok($('app').style.display === 'flex', 'landed in the app shell');
   ok($('scr-home').classList.contains('on'), 'home screen active');
 

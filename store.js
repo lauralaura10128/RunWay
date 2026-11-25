@@ -347,7 +347,7 @@
       var cur = await remote.getProfile(userId);
       var next = Object.assign({}, cur, patch);
       if (patch && patch.prefs) next.prefs = Object.assign({}, cur.prefs, patch.prefs);
-      var row = toRow(next);
+      var row = toRow(next, 'profiles');
       row.id = userId;
       delete row.user_id;
       var r = await remote.c().from('profiles').upsert(row).select().single();
@@ -365,7 +365,7 @@
       return r.data ? fromRow(r.data) : null;
     },
     async save(table, userId, row) {
-      var body = toRow(Object.assign({}, row, { userId: userId, updatedAt: now() }));
+      var body = toRow(Object.assign({}, row, { userId: userId, updatedAt: now() }), table);
       if (!row.id) delete body.id;
       var r = await remote.c().from(table).upsert(body).select().single();
       if (r.error) throw new Error(r.error.message);
@@ -403,12 +403,44 @@
   /* camelCase in the app, snake_case in Postgres */
   function snake(s) { return s.replace(/[A-Z]/g, function (c) { return '_' + c.toLowerCase(); }); }
   function camel(s) { return s.replace(/_([a-z0-9])/g, function (_, c) { return c.toUpperCase(); }); }
-  function toRow(o) {
-    var out = {};
+  /* The columns each Postgres table actually has. PostgREST rejects the whole
+     request with PGRST204 if the payload names a column that does not exist,
+     so anything not listed here is dropped before it is sent. IndexedDB accepts
+     any key, which is why a stray field passes locally and 400s on Supabase.
+     Keep in step with supabase/schema.sql - test-store.cjs re-derives these
+     from the .sql file and fails if the two drift apart. */
+  var COLUMNS = {
+    profiles: ['id', 'display_name', 'pace_sec_per_km', 'weekly_km', 'experience',
+      'preferred_distances', 'home_lat', 'home_lon', 'home_label', 'units', 'prefs',
+      'activity_privacy', 'route_privacy_default', 'onboarded', 'created_at', 'updated_at'],
+    routes: ['id', 'user_id', 'author_name', 'name', 'description', 'mode', 'coords',
+      'eles', 'precise', 'stats', 'prefs', 'start_label', 'end_label', 'is_public',
+      'copied_from', 'imported_from', 'created_at', 'updated_at'],
+    activities: ['id', 'user_id', 'route_id', 'name', 'distance_m', 'duration_s',
+      'moving_s', 'paused_s', 'avg_pace_sec_per_km', 'ascent_m', 'track', 'started_at',
+      'finished_at', 'is_public', 'created_at', 'updated_at'],
+    plans: ['id', 'user_id', 'name', 'goal', 'target_distance_m', 'race_date',
+      'days_per_week', 'weeks', 'active', 'created_at', 'updated_at'],
+    feedback: ['id', 'user_id', 'route_id', 'author_name', 'rating', 'safety', 'scenery',
+      'surface', 'traffic', 'accuracy', 'comment', 'is_public', 'created_at', 'updated_at'],
+    safety_reports: ['id', 'user_id', 'lat', 'lon', 'kind', 'note', 'is_public',
+      'expires_at', 'created_at', 'updated_at']
+  };
+
+  /* Pass `table` to drop keys that table has no column for. Without it every
+     key is sent, which is only safe when the destination is IndexedDB. */
+  function toRow(o, table) {
+    var allowed = table ? COLUMNS[table] : null;
+    var out = {}, dropped = [];
     Object.keys(o).forEach(function (k) {
       if (o[k] === undefined) return;
-      out[k === 'userId' ? 'user_id' : snake(k)] = o[k];
+      var col = k === 'userId' ? 'user_id' : snake(k);
+      if (allowed && allowed.indexOf(col) < 0) { dropped.push(col); return; }
+      out[col] = o[k];
     });
+    if (dropped.length && root.console && root.console.debug) {
+      root.console.debug('[store] ' + table + ': not a column, not sent - ' + dropped.join(', '));
+    }
     return out;
   }
   function fromRow(r, rename) {
@@ -599,6 +631,8 @@
 
     /* exposed for tests */
     _adapters: { local: local, remote: remote },
+    _toRow: toRow,
+    _COLUMNS: COLUMNS,
     _setAdapter: function (name) { A = name === 'remote' ? remote : local; },
     _setUser: function (u) { user = u; emit(); },
     _reset: function () { dbp = null; user = null; A = local; listeners = []; }

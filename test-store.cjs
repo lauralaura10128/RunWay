@@ -307,6 +307,65 @@ async function throws(fn, m, match) {
     ok((await S.areas.allMeta()).length === 0, 'cache entry deleted');
   }
 
+  console.log('\nRow payloads only ever name real columns');
+  {
+    // The bug this guards: onboarding put `presetName` on the profile patch.
+    // IndexedDB took it; PostgREST answered PGRST204 "Could not find the
+    // 'preset_name' column" and rejected the whole upsert, so Finish could
+    // never complete against Supabase.
+    const r = S._toRow({ paceSecPerKm: 330, presetName: 'Parks and green', onboarded: true }, 'profiles');
+    ok(r.pace_sec_per_km === 330, 'a real column is snake_cased and kept', r);
+    ok(!('preset_name' in r), 'presetName is dropped, not sent to Postgres', Object.keys(r));
+    ok(r.onboarded === true, 'the rest of the patch survives', r);
+
+    const u = S._toRow({ userId: 'u1', name: 'Loop', bogusField: 1 }, 'routes');
+    ok(u.user_id === 'u1', 'userId maps to user_id', u);
+    ok(!('bogus_field' in u), 'an unknown key is dropped for routes too', Object.keys(u));
+
+    // No table named => no filtering (the local/IndexedDB path).
+    ok('preset_name' in S._toRow({ presetName: 'x' }), 'unfiltered when no table is given');
+
+    // undefined is still omitted, but null is a real value Postgres should see.
+    const n = S._toRow({ homeLat: null, homeLon: undefined }, 'profiles');
+    ok(n.home_lat === null, 'null is sent through', n);
+    ok(!('home_lon' in n), 'undefined is omitted', Object.keys(n));
+  }
+
+  console.log('\nCOLUMNS matches supabase/schema.sql');
+  {
+    const fs = require('fs'), path = require('path');
+    const sqlPath = path.join(__dirname, 'supabase', 'schema.sql');
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    const derived = {};
+    const re = /create table if not exists public\.(\w+)\s*\(([\s\S]*?)\n\);/g;
+    let m;
+    while ((m = re.exec(sql))) {
+      const cols = [];
+      let depth = 0;
+      for (const line of m[2].split('\n')) {
+        const st = line.trim();
+        if (depth === 0) {
+          const c = st.match(/^([a-z_][a-z0-9_]*)\s+\S/);
+          if (c && !['check', 'unique', 'primary', 'foreign', 'constraint', 'references'].includes(c[1])) {
+            cols.push(c[1]);
+          }
+        }
+        depth += (st.split('(').length - 1) - (st.split(')').length - 1);
+      }
+      derived[m[1]] = cols;
+    }
+    ok(Object.keys(derived).length === 6, 'parsed all 6 tables out of the schema', Object.keys(derived));
+    Object.keys(derived).forEach(t => {
+      const got = (S._COLUMNS[t] || []).slice().sort().join(',');
+      const want = derived[t].slice().sort().join(',');
+      ok(got === want, t + ': COLUMNS is in step with the .sql',
+         got === want ? undefined : { inStoreJs: S._COLUMNS[t] || null, inSchemaSql: derived[t] });
+    });
+    Object.keys(S._COLUMNS).forEach(t => {
+      ok(!!derived[t], 'COLUMNS has no table the schema lacks: ' + t);
+    });
+  }
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('\nSUITE CRASHED:', e); process.exit(1); });
